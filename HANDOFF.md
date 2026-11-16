@@ -1,7 +1,8 @@
 # Handoff: Arch laptop tuning + Antigravity launchers
 
-Written 2026-11-14, just before a reboot. Read this first, then continue from
-"Next steps after reboot".
+Written 2026-11-14, just before a reboot; updated 2026-11-16. Read this first.
+For the 2026-11-14 tuning, continue from "Next steps after reboot". For the
+latest work, see "Update 2026-11-16".
 
 ## Machine
 
@@ -91,3 +92,50 @@ Open the folder `/home/lohn/Dev/ThisHost` in the desktop app's Code tab and send
 
 In a terminal instead: `cd ~/Dev/ThisHost && claude --continue` resumes the
 original session with full history.
+
+## Update 2026-11-16: authentication, repo, wireless display
+
+This folder is now the git repo for <https://github.com/lohn-cc/ArchDesktop>
+(private, branch `main`, git uses `gh` for credentials). Each kit folder has
+its own README with the full details; this is the summary.
+
+### Fingerprint authentication (`fingerprint-auth/`)
+
+| Surface | Behaviour | Changed |
+|---|---|---|
+| Login + lock screen | Fingerprint via Plasma's vendor `kde-fingerprint` stack | nothing (already worked) |
+| Polkit dialogs / `pkexec` | Finger first, `timeout=15 max-tries=2`, then password | `/etc/pam.d/polkit-1` (copy of vendor file + one line) |
+| `sudo` | Finger first, 30 s, then password; 15 min cache per terminal | `/etc/pam.d/sudo` (backup `sudo.bak-fprintd`) |
+| sudoers | `lohn ALL=(ALL:ALL) ALL`. **The old `%wheel NOPASSWD: ALL` rule is gone** (backup `/root/00_lohn.bak-nopasswd`) | `/etc/sudoers.d/00_lohn` |
+| KWallet | Disabled (`Enabled=false`); wallet file left on disk | `~/.config/kwalletrc` |
+
+Sensor: Synaptics 06cb:00f9, match-on-chip. Enrolled: both thumbs and both
+index fingers, the index fingers labelled `*-middle-finger` (cosmetic, left as is).
+
+Things that bit us, so you do not repeat them:
+
+- `NOPASSWD` made `sudo -v` pass with no auth at all, which looked exactly like
+  a working fingerprint. Check `sudo -K; sudo -n true` fails before trusting a test.
+- Run one `fprintd-*` command at a time; a second one gets "Device was already claimed".
+- `enroll-duplicate` = that finger is already enrolled under another name.
+- sudo's auth cache is per terminal; a prompt in one tab is not unlocked by
+  authenticating in another. The Claude terminal tabs timed out repeatedly
+  this way; run sudo steps in your own terminal.
+
+### Wireless display kit (`wireless-display-kit/`)
+
+- "Mirror phone" / "DeX desktop" failed with `Could not find any ADB device`
+  because they ran bare `scrcpy`. Both now go through a connection step: icon
+  chooser (USB cable / Wi-Fi / Pair with code) with a Back button; Wi-Fi lists
+  phones seen on the hotspot or via adb mDNS; pairing supports Android 11+
+  Wireless debugging.
+- `android-udev` installed and added to `install.sh`.
+- Installed copies in `~/.local/bin` match the repo (`WIFI_IF=wlp0s20f3` substituted).
+- **Not yet tested with a real phone.** First test: USB debugging on, plug in,
+  Mirror phone -> USB cable, tap Allow on the phone.
+
+### Still open (carried over)
+
+- Items under "Open items, not started" above are unchanged.
+- Phone mirror end-to-end test (see above).
+
