@@ -2,6 +2,73 @@
 # Wireless Display launcher: pick a mode or pass it as $1
 set -u
 WIFI_IF="${WIFI_IF:-__WIFI_IF__}"   # main Wi-Fi interface (installer fills this in)
+# ---------- Android / scrcpy helpers ----------
+adb_ready() { adb devices 2>/dev/null | awk 'NR>1 && $2=="device"' | grep -q .; }
+adb_unauthorized() { adb devices 2>/dev/null | awk 'NR>1 && $2=="unauthorized"' | grep -q .; }
+
+# Candidate phone IPs: hotspot clients (ARP on ap0) and anything adb finds via mDNS.
+phone_candidates() {
+  { ip neigh show dev ap0 2>/dev/null | awk '$NF!="FAILED"{print $1}'
+    timeout 3 adb mdns services 2>/dev/null | awk '/_adb-tls-connect|_adb\._tcp/{print $NF}' | cut -d: -f1
+  } | sort -u
+}
+
+run_scrcpy() {
+  local title="$1"; shift
+  exec konsole --title "$title" -e bash -c 'scrcpy "$@" || { echo; read -rp "scrcpy exited. Press Enter to close."; }' scrcpy "$@"
+}
+
+phone_connect() {
+  adb start-server >/dev/null 2>&1
+  adb_ready && return 0
+  if adb_unauthorized; then
+    kdialog --title "Phone" --msgbox "The phone is connected but has not authorized this laptop.<br><br>Unlock the phone and tap <b>Allow</b> (tick <i>Always allow</i>) on the USB debugging prompt, then press OK." >/dev/null
+    adb_ready && return 0
+  fi
+  local choice rc
+  choice=$("$HOME/.local/bin/wireless-display-gui" phone 2>/dev/null); rc=$?
+  [ "$rc" -eq 2 ] && return 1          # user closed the chooser
+  [ "$rc" -eq 3 ] && exec "$HOME/.local/bin/wireless-display-gui"   # Back -> main menu
+  [ "$rc" -eq 0 ] || choice=$(kdialog --title "Connect a phone" --radiolist "No phone is connected yet. How is the phone reachable?" \
+      usb  "USB cable (USB debugging enabled in Developer options)" on \
+      wifi "Wi-Fi: phone is on the hotspot / same network (adb over TCP)" off \
+      pair "Wi-Fi: pair with code (Android 11+ Wireless debugging)" off) || return 1
+  [ -n "$choice" ] || return 1
+  case "$choice" in
+    usb)
+      kdialog --title "USB" --passivepopup "Plug the phone in and accept the USB-debugging prompt on it. Waiting up to 60 s…" 6
+      timeout 60 adb wait-for-usb-device >/dev/null 2>&1 || { kdialog --error "No USB device appeared. Check: cable supports data, USB debugging is on, and android-udev is installed."; return 1; }
+      adb_ready && return 0
+      kdialog --error "Phone is attached but not authorized. Unlock it and tap Allow, then try again."; return 1 ;;
+    wifi)
+      local cands ip
+      cands=$(phone_candidates)
+      if [ -n "$cands" ]; then
+        local args=(); for c in $cands; do args+=("$c" "$c" off); done; args[2]=on
+        ip=$(kdialog --title "Pick the phone" --radiolist "Devices seen on the hotspot / via mDNS. Pick the phone, or Cancel to type an IP." "${args[@]}") \
+          || ip=$(kdialog --title "Phone IP" --inputbox "Phone IP address (Settings → About → Status, or Wireless debugging screen):" "192.168.") || return 1
+      else
+        ip=$(kdialog --title "Phone IP" --inputbox "No phone found on the hotspot. Enter the phone's IP address:" "192.168.") || return 1
+      fi
+      ip=${ip%%:*}
+      adb connect "$ip:5555" 2>&1 | grep -q 'connected' && adb_ready && return 0
+      # port 5555 is only open after a one-time 'adb tcpip 5555' over USB; fall back to pairing
+      kdialog --title "Not reachable" --yesno "Could not reach $ip:5555.<br><br>Either plug the phone in once by USB so TCP mode can be switched on (Yes), or use <b>Wireless debugging → Pair with code</b> instead (No, then pick Pair)." \
+        && { timeout 60 adb wait-for-usb-device && adb tcpip 5555 && sleep 2 && adb connect "$ip:5555" && adb_ready && return 0; }
+      return 1 ;;
+    pair)
+      kdialog --title "Pair" --msgbox "On the phone: Settings → Developer options → <b>Wireless debugging</b> → <b>Pair device with pairing code</b>.<br>Keep that screen open; it shows an IP:port and a 6-digit code." >/dev/null
+      local hp code
+      hp=$(kdialog --title "Pair" --inputbox "Pairing IP:port shown on the phone (e.g. 192.168.12.34:37123):" "") || return 1
+      code=$(kdialog --title "Pair" --inputbox "6-digit pairing code:" "") || return 1
+      adb pair "$hp" "$code" 2>&1 | grep -q 'Successfully' || { kdialog --error "Pairing failed. Check IP:port and code, and that laptop and phone are on the same network."; return 1; }
+      local cp
+      cp=$(kdialog --title "Connect" --inputbox "Now the IP:port from the main Wireless debugging screen (port differs from the pairing one):" "${hp%%:*}:") || return 1
+      adb connect "$cp" 2>&1 | grep -q 'connected' && adb_ready && return 0
+      kdialog --error "Paired, but connect to $cp failed."; return 1 ;;
+  esac
+}
+
 mode="${1:-}"
 if [ -z "$mode" ]; then
   exec "$HOME/.local/bin/wireless-display-gui"
@@ -9,8 +76,8 @@ fi
 case "$mode" in
   cast)      exec gnome-network-displays ;;
   airplay)   exec konsole --title "AirPlay receiver (close window to stop)" -e uxplay -n ArchLaptop ;;
-  phone)     exec konsole --title "scrcpy phone mirror" -e bash -c 'scrcpy || { echo; read -rp "scrcpy exited. Press Enter to close."; }' ;;
-  dex)       exec konsole --title "scrcpy DeX desktop" -e bash -c 'scrcpy --new-display=1920x1080 --no-vd-system-decorations || { echo; read -rp "scrcpy exited. Press Enter to close."; }' ;;
+  phone)     phone_connect && run_scrcpy "scrcpy phone mirror" ;;
+  dex)       phone_connect && run_scrcpy "scrcpy DeX desktop" --new-display=1920x1080 --no-vd-system-decorations ;;
   moonlight) exec moonlight ;;
   hotspot|hotspot-start|hotspot-stop|hotspot-qr)
     con=Display-Hotspot

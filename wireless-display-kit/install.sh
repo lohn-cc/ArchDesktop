@@ -24,7 +24,7 @@ sudo pacman -S --needed --noconfirm \
   pipewire wireplumber xdg-desktop-portal-kde \
   gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav gst-plugin-pipewire \
   intel-media-driver libva-utils iw avahi \
-  scrcpy android-tools moonlight-qt \
+  scrcpy android-tools android-udev moonlight-qt \
   kdialog qrencode python-pyqt6
 
 say "Installing AUR packages (gnome-network-displays, uxplay, catt)"

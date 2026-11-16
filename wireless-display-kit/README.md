@@ -32,7 +32,7 @@ Override the detected interface with `WIFI_IF=wlan0 ./install.sh`.
 | Miracast + Chromecast sender | `gnome-network-displays` | AUR |
 | AirPlay receiver | `uxplay` | AUR |
 | Cast files/URLs to Chromecast from CLI | `catt` | AUR |
-| Android mirroring / DeX desktop | `scrcpy`, `android-tools` | extra |
+| Android mirroring / DeX desktop | `scrcpy`, `android-tools`, `android-udev` | extra |
 | Receive another PC's screen | `moonlight-qt` | extra |
 | Video pipeline + codecs | `gst-plugins-good/bad/ugly`, `gst-libav`, `gst-plugin-pipewire`, `pipewire`, `wireplumber` | extra |
 | Hardware H.264 encoding (Intel) | `intel-media-driver`, `libva-utils` | extra |
@@ -79,7 +79,7 @@ There is **no working Miracast receiver for Linux** today (miraclecast is abando
 | Source | Tool | How |
 |---|---|---|
 | iPhone / iPad / Mac | UxPlay | **Wireless Display → AirPlay receiver**, then pick the laptop in Screen Mirroring on the Apple device |
-| Android / Samsung phone | scrcpy | Enable USB debugging, plug in once, **Mirror phone**. Wireless afterwards with `scrcpy --tcpip` |
+| Android / Samsung phone | scrcpy | **Mirror phone** asks how the phone is reachable: USB cable, Wi-Fi (picks phones seen on the hotspot or by mDNS, or an IP you type), or Android 11+ *Wireless debugging* pairing code. USB debugging must be on in Developer options. |
 | Samsung DeX-style desktop | scrcpy virtual display | **DeX desktop** runs `scrcpy --new-display=1920x1080 --no-vd-system-decorations` |
 | Another Windows / Linux / Mac PC | Sunshine on that PC + Moonlight here | **Other PC screen**. Alternative: Deskreen on the other PC and open its URL in a browser here |
 
