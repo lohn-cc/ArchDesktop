@@ -4,7 +4,7 @@
 #   ./3-enroll-tpm2.sh --pin    # also require a PIN at boot
 set -euo pipefail
 DEV=/dev/disk/by-uuid/f4d66f5d-3b5b-4df8-8f97-2d07f7c15c75
-if ! bootctl status 2>/dev/null | grep -q 'Secure Boot: enabled'; then
+if ! grep -q "Secure Boot: enabled" <<<"$(bootctl status 2>/dev/null || true)"; then
   echo "Secure Boot is not enabled; enrolling now would bind to the wrong PCR 7 state. Enable it first." >&2
   exit 1
 fi

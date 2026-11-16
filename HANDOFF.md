@@ -141,3 +141,22 @@ Things that bit us, so you do not repeat them:
 - Items under "Open items, not started" above are unchanged.
 - Phone mirror end-to-end test (see above).
 
+
+## Update 2026-11-16 (evening): LUKS TPM2 unlock + Secure Boot
+
+Done, verified on `lohncc`: boot unlocks the disk with no passphrase
+(`systemd-cryptsetup` finishes in ~2 s), `bootctl status` shows
+`Secure Boot: enabled (user)`. Kit and notes in `luks-tpm2/`.
+
+- Stage 1: sbctl keys, `systemd`/`sd-encrypt` hooks, `rd.luks.*` cmdline, signed UKIs,
+  fallback `arch-linux-backup.efi`.
+- Firmware: Reset to Setup Mode (Secure Boot off). Enabling Secure Boot before
+  enrolling our keys gives a "Secure Boot Violation".
+- Stage 2: `sbctl enroll-keys -m`. Kernel marks KEK/db efivars immutable;
+  script now runs `chattr -i` first. Lenovo does not turn Secure Boot on by
+  itself: enable it in firmware after enrolling.
+- Stage 3: TPM2 token in keyslot 1, PCR 7, no PIN. Passphrase stays in keyslot 0.
+- Script fix: `cmd | grep -q` under `set -o pipefail` fails (SIGPIPE), so checks
+  now use `grep -q ... <<<"$(cmd)"`.
+- Firmware update or Secure Boot change → TPM refuses → type passphrase, run
+  `luks-tpm2/recover.sh`.
