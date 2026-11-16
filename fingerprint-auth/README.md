@@ -34,7 +34,12 @@ Finger names: `{left,right}-{thumb,index-finger,middle-finger,ring-finger,little
 
 ### Fixing the mislabelled index fingers on lohncc
 
-On lohncc the entries named `left-middle-finger` and `right-middle-finger` were
+Done on 2026-11-16: index fingers are now enrolled under their real names.
+Note for next time: the Plasma Users-page enroll dialog **replaces** the whole
+set (it called `DeleteEnrolledFinger` on the thumbs), so enroll extra fingers
+from the terminal with `fprintd-enroll`, which only adds.
+
+Original situation, kept for reference. On lohncc the entries named `left-middle-finger` and `right-middle-finger` were
 enrolled with the **index** fingers (confirmed with `fprintd-verify -f
 right-middle-finger` matching the right index). Auth works regardless; do this
 only to make the labels right and add the real middle fingers.

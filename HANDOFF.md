@@ -109,8 +109,10 @@ its own README with the full details; this is the summary.
 | sudoers | `lohn ALL=(ALL:ALL) ALL`. **The old `%wheel NOPASSWD: ALL` rule is gone** (backup `/root/00_lohn.bak-nopasswd`) | `/etc/sudoers.d/00_lohn` |
 | KWallet | Disabled (`Enabled=false`); wallet file left on disk | `~/.config/kwalletrc` |
 
-Sensor: Synaptics 06cb:00f9, match-on-chip. Enrolled: both thumbs and both
-index fingers, the index fingers labelled `*-middle-finger` (cosmetic, left as is).
+Sensor: Synaptics 06cb:00f9, match-on-chip. Enrolled (after the 2026-11-16
+re-enroll): `left-index-finger`, `right-index-finger`. The thumbs were removed
+by the GUI enroll tool during that re-enroll and still need adding back
+(`fprintd-enroll -f right-thumb`, then `-f left-thumb`, one at a time).
 
 Things that bit us, so you do not repeat them:
 
