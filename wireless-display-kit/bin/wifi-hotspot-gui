@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""Wi-Fi hotspot control window: QR (show/hide), start/stop, change password."""
+import subprocess, tempfile, os, sys
+from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+                             QPushButton, QInputDialog, QLineEdit, QMessageBox)
+from PyQt6.QtGui import QPixmap, QIcon
+from PyQt6.QtCore import Qt, QTimer
+
+CON = "Display-Hotspot"
+WIFI_IF = os.environ.get("WIFI_IF", "__WIFI_IF__")  # installer fills this in
+AP_IF = "ap0"
+
+def run(*cmd, **kw):
+    return subprocess.run(cmd, text=True, capture_output=True, **kw)
+
+def nm(*args):
+    return run("nmcli", "-t", *args).stdout.strip()
+
+def is_on():
+    return CON in nm("-f", "NAME", "con", "show", "--active").splitlines()
+
+def ssid():  return nm("-g", "802-11-wireless.ssid", "con", "show", CON)
+def psk():   return run("nmcli", "-s", "-g", "802-11-wireless-security.psk", "con", "show", CON).stdout.strip()
+def ip():    return nm("-g", "IP4.ADDRESS", "con", "show", CON).split("/")[0]
+def channel():
+    for line in run("iw", "dev", WIFI_IF, "info").stdout.splitlines():
+        if "channel" in line:
+            return line.split()[1]
+    return ""
+
+def start():
+    if is_on():
+        return True, "already on"
+    if run("iw", "dev", AP_IF, "info").returncode != 0:
+        r = run("pkexec", "iw", "dev", WIFI_IF, "interface", "add", AP_IF, "type", "__ap")
+        if r.returncode != 0:
+            return False, "Could not create virtual interface ap0:\n" + r.stderr
+    ch = channel()
+    if ch:
+        band = "a" if int(ch) > 14 else "bg"
+    else:
+        ch, band = "6", "bg"
+    run("nmcli", "con", "mod", CON, "connection.interface-name", AP_IF,
+        "802-11-wireless.band", band, "802-11-wireless.channel", ch)
+    r = run("nmcli", "con", "up", CON)
+    return r.returncode == 0, (f"Hotspot ON (channel {ch})" if r.returncode == 0 else r.stderr)
+
+def stop():
+    if not is_on():
+        return True, "already off"
+    r = run("nmcli", "con", "down", CON)
+    return r.returncode == 0, ("Hotspot OFF" if r.returncode == 0 else r.stderr)
+
+def set_password(new):
+    r = run("nmcli", "con", "mod", CON, "wifi-sec.psk", new)
+    if r.returncode != 0:
+        return False, r.stderr
+    if is_on():
+        stop(); start()
+    return True, "Password changed"
+
+def qr_pixmap(text):
+    fd, png = tempfile.mkstemp(suffix=".png"); os.close(fd)
+    try:
+        run("qrencode", "-s", "7", "-m", "1", "-o", png, text)
+        return QPixmap(png)
+    finally:
+        os.unlink(png)
+
+class Win(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Wi-Fi Hotspot")
+        self.setWindowIcon(QIcon.fromTheme("network-wireless-hotspot"))
+        lay = QVBoxLayout(self)
+
+        self.status = QLabel(); self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status.setStyleSheet("font-size: 15px; font-weight: bold;")
+        lay.addWidget(self.status)
+
+        self.qr = QLabel(); self.qr.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(self.qr)
+
+        self.info = QLabel(); self.info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        lay.addWidget(self.info)
+
+        self.toggle = QPushButton("Hide QR")
+        self.toggle.setCheckable(True); self.toggle.setChecked(True)
+        self.toggle.toggled.connect(self.refresh)
+        lay.addWidget(self.toggle)
+
+        row = QHBoxLayout()
+        self.b_start = QPushButton(QIcon.fromTheme("media-playback-start"), "Start")
+        self.b_stop  = QPushButton(QIcon.fromTheme("media-playback-stop"), "Stop")
+        self.b_start.clicked.connect(lambda: self.act(start))
+        self.b_stop.clicked.connect(lambda: self.act(stop))
+        row.addWidget(self.b_start); row.addWidget(self.b_stop)
+        lay.addLayout(row)
+
+        row2 = QHBoxLayout()
+        b_pw = QPushButton(QIcon.fromTheme("dialog-password"), "Change password…")
+        b_pw.clicked.connect(self.change_pw)
+        b_close = QPushButton(QIcon.fromTheme("window-close"), "Close")
+        b_close.clicked.connect(self.close)
+        row2.addWidget(b_pw); row2.addWidget(b_close)
+        lay.addLayout(row2)
+
+        self.msg = QLabel(""); self.msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.msg.setStyleSheet("color: gray;")
+        lay.addWidget(self.msg)
+
+        self.refresh()
+        t = QTimer(self); t.timeout.connect(self.refresh); t.start(3000)
+
+    def act(self, fn):
+        self.setCursor(Qt.CursorShape.WaitCursor); QApplication.processEvents()
+        ok, text = fn()
+        self.unsetCursor()
+        self.msg.setText(text if ok else "")
+        if not ok:
+            QMessageBox.critical(self, "Hotspot", text)
+        self.refresh()
+
+    def change_pw(self):
+        new, ok = QInputDialog.getText(self, "Change hotspot password",
+                                       "New password (8–63 characters):", QLineEdit.EchoMode.Normal, psk())
+        if not ok:
+            return
+        if not 8 <= len(new) <= 63:
+            QMessageBox.warning(self, "Hotspot", "Password must be 8 to 63 characters.")
+            return
+        self.act(lambda: set_password(new))
+
+    def refresh(self):
+        on = is_on()
+        s, p = ssid(), psk()
+        self.status.setText(f"● Hotspot is {'ON' if on else 'OFF'}")
+        self.status.setStyleSheet("font-size: 15px; font-weight: bold; color: %s;" % ("#2e9e3f" if on else "#999"))
+        show = self.toggle.isChecked()
+        self.toggle.setText("Hide QR" if show else "Show QR")
+        self.qr.setVisible(show)
+        if show:
+            self.qr.setPixmap(qr_pixmap(f"WIFI:T:WPA;S:{s};P:{p};;"))
+        pw_txt = p if show else "•" * len(p)
+        extra = f"<br>Laptop IP: {ip()} &nbsp; Channel: {channel()}" if on else ""
+        self.info.setText(f"<b>Network:</b> {s}<br><b>Password:</b> {pw_txt}{extra}")
+        self.b_start.setEnabled(not on); self.b_stop.setEnabled(on)
+        self.adjustSize()
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    if QIcon.fromTheme("computer").isNull():
+        QIcon.setThemeSearchPaths(QIcon.themeSearchPaths() + ["/usr/share/icons", os.path.expanduser("~/.local/share/icons")])
+        QIcon.setThemeName("breeze")
+    w = Win(); w.show()
+    sys.exit(app.exec())

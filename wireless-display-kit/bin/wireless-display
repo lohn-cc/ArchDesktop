@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Wireless Display launcher: pick a mode or pass it as $1
+set -u
+WIFI_IF="${WIFI_IF:-__WIFI_IF__}"   # main Wi-Fi interface (installer fills this in)
+mode="${1:-}"
+if [ -z "$mode" ]; then
+  exec "$HOME/.local/bin/wireless-display-gui"
+fi
+case "$mode" in
+  cast)      exec gnome-network-displays ;;
+  airplay)   exec konsole --title "AirPlay receiver (close window to stop)" -e uxplay -n ArchLaptop ;;
+  phone)     exec konsole --title "scrcpy phone mirror" -e bash -c 'scrcpy || { echo; read -rp "scrcpy exited. Press Enter to close."; }' ;;
+  dex)       exec konsole --title "scrcpy DeX desktop" -e bash -c 'scrcpy --new-display=1920x1080 --no-vd-system-decorations || { echo; read -rp "scrcpy exited. Press Enter to close."; }' ;;
+  moonlight) exec moonlight ;;
+  hotspot|hotspot-start|hotspot-stop|hotspot-qr)
+    con=Display-Hotspot
+    hs_on() { nmcli -t -f NAME con show --active | grep -qx "$con"; }
+    hs_qr() {
+      local ssid psk ip png
+      ssid=$(nmcli -g 802-11-wireless.ssid con show "$con")
+      psk=$(nmcli -s -g 802-11-wireless-security.psk con show "$con")
+      ip=$(nmcli -g IP4.ADDRESS con show "$con" 2>/dev/null | cut -d/ -f1)
+      png=$(mktemp --suffix=.png)
+      qrencode -s 8 -m 2 -o "$png" "WIFI:T:WPA;S:$ssid;P:$psk;;"
+      kdialog --title "Hotspot: scan to join" --msgbox \
+        "<img src=\"file://$png\"><br><b>Network:</b> $ssid<br><b>Password:</b> $psk<br><b>Laptop IP:</b> ${ip:-not running}<br><b>Status:</b> $(hs_on && echo ON || echo OFF)" >/dev/null
+      rm -f "$png"
+    }
+    hs_start() {
+      hs_on && { kdialog --passivepopup "Hotspot already on" 3; return 0; }
+      iw dev ap0 info >/dev/null 2>&1 || pkexec iw dev $WIFI_IF interface add ap0 type __ap
+      local ch band
+      ch=$(iw dev $WIFI_IF info 2>/dev/null | awk '/channel/{print $2}')
+      if [ -n "$ch" ]; then
+        if [ "$ch" -gt 14 ]; then band=a; else band=bg; fi
+      else ch=6; band=bg; fi
+      nmcli con mod "$con" connection.interface-name ap0 802-11-wireless.band "$band" 802-11-wireless.channel "$ch"
+      if nmcli con up "$con" >/dev/null 2>&1; then kdialog --passivepopup "Hotspot ON (channel $ch)" 4; else kdialog --error "Could not start hotspot. Run: nmcli con up $con"; return 1; fi
+    }
+    hs_stop() {
+      hs_on || { kdialog --passivepopup "Hotspot already off" 3; return 0; }
+      nmcli con down "$con" >/dev/null && kdialog --passivepopup "Hotspot OFF" 4
+    }
+    case "$mode" in
+      hotspot-start) hs_start ;;
+      hotspot-stop)  hs_stop ;;
+      hotspot-qr)    hs_qr ;;
+      hotspot) exec "$HOME/.local/bin/wifi-hotspot-gui" ;;
+    esac
+    ;;
+  *) kdialog --error "Unknown mode: $mode"; exit 1 ;;
+esac

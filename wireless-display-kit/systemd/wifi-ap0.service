@@ -1,0 +1,14 @@
+[Unit]
+Description=Create virtual Wi-Fi AP interface ap0 for the Display-Hotspot
+After=sys-subsystem-net-devices-__WIFI_IF__.device
+BindsTo=sys-subsystem-net-devices-__WIFI_IF__.device
+Before=NetworkManager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c '/usr/bin/iw dev ap0 info >/dev/null 2>&1 || /usr/bin/iw dev __WIFI_IF__ interface add ap0 type __ap'
+ExecStop=-/usr/bin/iw dev ap0 del
+
+[Install]
+WantedBy=multi-user.target

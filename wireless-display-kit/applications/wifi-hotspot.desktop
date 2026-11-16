@@ -1,0 +1,25 @@
+[Desktop Entry]
+Type=Application
+Name=Wi-Fi Hotspot
+Comment=Start or stop the ArchDisplay hotspot, show the join QR code
+Exec=__HOME__/.local/bin/wireless-display hotspot
+Icon=network-wireless-hotspot
+Terminal=false
+Categories=Network;
+Keywords=hotspot;wifi;share;tether;access point;qr;
+Actions=start;stop;qr;
+
+[Desktop Action start]
+Name=Start hotspot
+Exec=__HOME__/.local/bin/wireless-display hotspot-start
+Icon=media-playback-start
+
+[Desktop Action stop]
+Name=Stop hotspot
+Exec=__HOME__/.local/bin/wireless-display hotspot-stop
+Icon=media-playback-stop
+
+[Desktop Action qr]
+Name=Show QR code / password
+Exec=__HOME__/.local/bin/wireless-display hotspot-qr
+Icon=view-barcode-qr

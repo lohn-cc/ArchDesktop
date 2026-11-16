@@ -1,0 +1,40 @@
+[Desktop Entry]
+Type=Application
+Name=Wireless Display
+Comment=Cast to TV, receive AirPlay, mirror phone, or use another PC's screen
+Exec=__HOME__/.local/bin/wireless-display
+Icon=video-display
+Terminal=false
+Categories=Utility;
+Keywords=miracast;chromecast;airplay;dex;scrcpy;cast;screen;mirror;
+Actions=cast;airplay;phone;dex;moonlight;hotspot;
+
+[Desktop Action cast]
+Name=Cast screen to TV / projector
+Exec=__HOME__/.local/bin/wireless-display cast
+Icon=video-television
+
+[Desktop Action airplay]
+Name=Receive AirPlay (iPhone / Mac)
+Exec=__HOME__/.local/bin/wireless-display airplay
+Icon=network-wireless
+
+[Desktop Action phone]
+Name=Mirror Android phone
+Exec=__HOME__/.local/bin/wireless-display phone
+Icon=phone
+
+[Desktop Action dex]
+Name=Samsung DeX desktop from phone
+Exec=__HOME__/.local/bin/wireless-display dex
+Icon=computer
+
+[Desktop Action moonlight]
+Name=Use another PC's screen (Moonlight)
+Exec=__HOME__/.local/bin/wireless-display moonlight
+Icon=input-gaming
+
+[Desktop Action hotspot]
+Name=Wi-Fi hotspot (start / stop / QR)
+Exec=__HOME__/.local/bin/wireless-display hotspot
+Icon=network-wireless-hotspot

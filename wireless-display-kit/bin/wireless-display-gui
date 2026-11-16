@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Wireless Display launcher: big icon buttons, one per mode."""
+import os, subprocess, sys
+from PyQt6.QtWidgets import QApplication, QWidget, QGridLayout, QToolButton, QLabel, QVBoxLayout
+from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import Qt, QSize
+
+SCRIPT = os.path.expanduser("~/.local/bin/wireless-display")
+
+# (mode, label, icon theme name, tooltip)
+MODES = [
+    ("cast",      "Cast to TV",        "video-television",          "Send this screen to a Miracast / Chromecast TV or projector"),
+    ("airplay",   "AirPlay receiver",  "network-wireless",          "Receive the screen of an iPhone, iPad or Mac"),
+    ("phone",     "Mirror phone",      "phone",                     "Mirror an Android / Samsung phone (scrcpy, USB or Wi-Fi)"),
+    ("dex",       "DeX desktop",       "computer",                  "Samsung DeX-style desktop from the phone"),
+    ("moonlight", "Other PC screen",   "input-gaming",              "Use another PC's screen via Moonlight / Sunshine"),
+    ("hotspot",   "Wi-Fi hotspot",     "network-wireless-hotspot",  "Start / stop the hotspot, show the join QR code"),
+]
+
+class Win(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Wireless Display")
+        self.setWindowIcon(QIcon.fromTheme("video-display"))
+        lay = QVBoxLayout(self)
+        title = QLabel("What do you want to do?")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("font-size: 15px; font-weight: bold; margin: 4px;")
+        lay.addWidget(title)
+        grid = QGridLayout(); grid.setSpacing(10)
+        lay.addLayout(grid)
+        for i, (mode, label, icon, tip) in enumerate(MODES):
+            b = QToolButton()
+            b.setText(label); b.setToolTip(tip)
+            b.setIcon(QIcon.fromTheme(icon, QIcon.fromTheme("video-display")))
+            b.setIconSize(QSize(64, 64))
+            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+            b.setFixedSize(150, 120)
+            b.setStyleSheet("QToolButton { font-size: 13px; border-radius: 10px; }")
+            b.clicked.connect(lambda _=False, m=mode: self.launch(m))
+            grid.addWidget(b, i // 3, i % 3)
+        self.setFixedSize(self.sizeHint())
+
+    def launch(self, mode):
+        subprocess.Popen([SCRIPT, mode], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.close()
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    if QIcon.fromTheme("computer").isNull():
+        QIcon.setThemeSearchPaths(QIcon.themeSearchPaths() + ["/usr/share/icons", os.path.expanduser("~/.local/share/icons")])
+        QIcon.setThemeName("breeze")
+    w = Win(); w.show()
+    sys.exit(app.exec())
